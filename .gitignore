@@ -1,0 +1,8 @@
+# Image de référence (capture d'écran copyrightée, non publiée)
+capture.jpeg
+capture.jpg
+capture.png
+
+# Divers
+.DS_Store
+*.log

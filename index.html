@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Tom Gold Run 🐱</title>
+<style>
+  :root { --gold:#ffc11e; --blue:#2b6fd6; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#9fd3ff; font-family:"Segoe UI",system-ui,Arial,sans-serif; user-select:none;
+    touch-action:none; overscroll-behavior:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; touch-action:none; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
+  .panel {
+    position:absolute; display:flex; align-items:center; gap:8px;
+    background:linear-gradient(#3b8be8,#2b6fd6); color:#fff;
+    border:3px solid #1b4f9e; border-radius:30px; padding:6px 14px;
+    font-weight:800; font-size:20px; box-shadow:0 3px 0 #1b4f9e;
+  }
+  #goldPanel  { top:14px; left:14px; }
+  #whistlePanel { top:60px; left:14px; }
+  #centerPanel { top:14px; left:50%; transform:translateX(-50%); min-width:200px; justify-content:center; }
+  #multTag {
+    position:absolute; left:-14px; top:-10px; background:#7ed957; color:#fff;
+    border:3px solid #4fa52f; border-radius:12px; padding:1px 8px; font-size:18px;
+    transform:rotate(-8deg); box-shadow:0 2px 0 #4fa52f;
+  }
+  .icon { font-size:22px; }
+  #pauseBtn {
+    position:absolute; top:14px; right:14px; pointer-events:auto; cursor:pointer;
+    width:50px; height:50px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#ffd95e,#ffb300);
+    border:3px solid #d98b00; color:#7a4a00; font-size:24px; font-weight:900;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 3px 0 #d98b00;
+  }
+  #timerBar {
+    position:absolute; top:108px; left:14px; width:180px; height:14px;
+    background:#1b4f9e88; border:2px solid #1b4f9e; border-radius:10px; overflow:hidden;
+  }
+  #timerFill { height:100%; width:100%; background:linear-gradient(#7ed957,#4fa52f); transition:width .1s linear; }
+
+  #flash {
+    position:absolute; top:38%; left:50%; transform:translate(-50%,-50%) scale(0.5);
+    font-size:64px; font-weight:900; color:#fff; text-shadow:0 4px 0 #d98b00, 0 0 24px #ffd95e;
+    opacity:0; pointer-events:none; white-space:nowrap;
+  }
+  #flash.show { animation:pop 1.1s ease-out forwards; }
+  @keyframes pop {
+    0% { opacity:0; transform:translate(-50%,-50%) scale(.4) rotate(-6deg); }
+    25% { opacity:1; transform:translate(-50%,-50%) scale(1.15) rotate(3deg); }
+    70% { opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0); }
+    100% { opacity:0; transform:translate(-50%,-50%) scale(1.1) rotate(0); }
+  }
+
+  /* ---------- Overlays (menus) ---------- */
+  #overlay {
+    position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px; padding:24px;
+    background:radial-gradient(circle at 50% 30%,#bfe4ff,#7fc0ff 70%,#5aa5f0);
+    text-align:center;
+  }
+  #overlay.hidden { display:none; }
+  #overlay.clear { background:transparent; }
+  #overlay.clear #overlayContent {
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    gap:16px; height:100vh; width:100%; padding:24px 0;
+  }
+  #overlay.clear .title, #overlay.clear .subtitle { text-shadow:0 3px 12px #000a, 0 2px 0 #1b4f9e; }
+  .title { font-size:52px; font-weight:900; color:#fff; text-shadow:0 5px 0 #1b4f9e, 0 0 30px #fff; letter-spacing:1px; }
+  .subtitle { font-size:22px; color:#1b4f9e; font-weight:800; max-width:520px; line-height:1.35; }
+  .stat { font-size:24px; color:#1b4f9e; font-weight:800; }
+  .btn {
+    pointer-events:auto; cursor:pointer; font-weight:900; font-size:26px; color:#fff;
+    background:linear-gradient(#7ed957,#4fa52f); border:4px solid #2f7a1c; border-radius:40px;
+    padding:14px 46px; box-shadow:0 5px 0 #2f7a1c; transition:transform .06s;
+  }
+  .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #2f7a1c; }
+  .btn.alt { background:linear-gradient(#ffd95e,#ffb300); border-color:#d98b00; box-shadow:0 5px 0 #d98b00; color:#7a4a00; }
+  .hint { font-size:16px; color:#1b4f9e; opacity:.85; max-width:560px; }
+  .charGrid { display:flex; flex-wrap:wrap; gap:14px; justify-content:center; max-width:680px; }
+  .charCard {
+    pointer-events:auto; cursor:pointer; width:120px; border-radius:18px; padding:10px;
+    background:#ffffffcc; border:4px solid #1b4f9e55; box-shadow:0 4px 0 #1b4f9e33;
+    display:flex; flex-direction:column; align-items:center; gap:6px; transition:transform .08s;
+  }
+  .charCard:hover { transform:translateY(-3px); }
+  .charCard.sel { border-color:#7ed957; box-shadow:0 4px 0 #4fa52f; }
+  .charCard.locked { filter:grayscale(1) brightness(.8); cursor:not-allowed; }
+  .swatch { width:64px; height:64px; border-radius:50%; border:3px solid #00000022; }
+  .charName { font-weight:800; color:#1b4f9e; font-size:15px; }
+  .charLock { font-size:13px; color:#a33; font-weight:700; }
+  #villageRow { display:flex; gap:6px; font-size:30px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="panel" id="goldPanel"><span class="icon">🪙</span><span id="goldCount">0</span><span style="opacity:.7;font-size:15px">/ <span id="goldTarget">25</span></span></div>
+  <div class="panel" id="whistlePanel"><span class="icon">🎵</span><span id="whistleCount">0</span></div>
+  <div class="panel" id="centerPanel"><span id="multTag">x1</span><span id="distCount">0</span><span style="font-size:15px;opacity:.7">m</span></div>
+  <div id="pauseBtn">II</div>
+  <div id="timerBar"><div id="timerFill"></div></div>
+  <div id="flash"></div>
+</div>
+
+<!-- Overlay menu -->
+<div id="overlay">
+  <div id="overlayContent"></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================================
+   TOM GOLD RUN — endless runner (Three.js, un seul fichier, zéro asset)
+   ========================================================================= */
+
+// ---------- Constantes de jeu ----------
+const LANES = [-2.4, 0, 2.4];           // positions X des 3 voies
+const ROAD_W = 9;
+const SPAWN_Z = -90;                     // distance d'apparition devant le joueur
+const RECYCLE_Z = 14;                    // au-delà (derrière la caméra) on recycle
+const GRAVITY = -42;
+const JUMP_V = 15;
+const PLAYER_Z = 3;                      // le joueur reste ~fixe, le monde défile
+
+// ---------- Personnages ----------
+const CHARACTERS = [];
+CHARACTERS.push(
+  { name:"Tom",     fur:0x9aa0a8, belly:0xe9ebef, shirt:0xe23b3b, pants:0x36507a, ears:"cat",    acc:null },
+  { name:"Angela",  fur:0xf2f2f4, belly:0xffffff, shirt:0xff7fb0, pants:0x7a4fa0, ears:"cat",    acc:"bow" },
+  { name:"Ginger",  fur:0xf0922e, belly:0xffe0b0, shirt:0x46c24a, pants:0x2f6e8c, ears:"cat",    acc:null },
+  { name:"Ben",     fur:0x8a6b4a, belly:0xd9c4a8, shirt:0xf4f4f4, pants:0x444b55, ears:"cat",    acc:"glasses" },
+  { name:"Hank",    fur:0xc9a24b, belly:0xf0e0b0, shirt:0x3aa0d6, pants:0x33405a, ears:"dog",    acc:null },
+  { name:"Le Raton",fur:0x5a5f6a, belly:0xcfd3da, shirt:0x222831, pants:0x111418, ears:"raccoon",acc:"mask" },
+);
+
+// ---------- Etat global ----------
+const State = {
+  scene:null, camera:null, renderer:null, clock:null,
+  running:false, paused:false, gameOver:false, mode:"menu",
+  level:1, goldTarget:25, gold:0, whistles:0, dist:0, mult:1,
+  villages:0, speed:18, baseSpeed:18, maxSpeed:24,
+  time:30, maxTime:30,
+  charIndex:0, unlocked:1,
+  player:null, world:null, fx:[], village:null,
+};
+
+// =========================================================================
+//  SON (WebAudio, synthétisé — aucun fichier)
+// =========================================================================
+const SFX = (()=>{
+  let ctx=null;
+  const ensure=()=>{ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); return ctx; };
+  function blip(freq, dur, type="sine", vol=0.18, slideTo=null){
+    try{
+      const c=ensure(); const t=c.currentTime;
+      const o=c.createOscillator(), g=c.createGain();
+      o.type=type; o.frequency.setValueAtTime(freq,t);
+      if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t+dur);
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur);
+    }catch(e){}
+  }
+  return {
+    coin:()=>blip(880,0.09,"square",0.12,1320),
+    whistle:()=>blip(1500,0.18,"sine",0.12,2200),
+    goal:()=>{ blip(523,0.12,"square",0.15); setTimeout(()=>blip(659,0.12,"square",0.15),90); setTimeout(()=>blip(880,0.22,"square",0.16),180); },
+    jump:()=>blip(400,0.12,"square",0.10,720),
+    crash:()=>blip(200,0.5,"sawtooth",0.22,40),
+    skate:()=>blip(300,0.3,"sawtooth",0.12,900),
+    levelup:()=>{ blip(523,0.12,"sine",0.16); setTimeout(()=>blip(784,0.2,"sine",0.16),120); },
+    resume:()=>{ ensure(); },
+  };
+})();
+
+// =========================================================================
+//  MODELES (tout en primitives Three.js)
+// =========================================================================
+function box(w,h,d,color,opts={}){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({color, roughness:opts.rough??0.8, metalness:opts.metal??0.0, flatShading:!!opts.flat}));
+  m.castShadow=opts.cast??true; m.receiveShadow=opts.recv??false; return m;
+}
+
+function makeCharacter(def){
+  const g=new THREE.Group();
+  const fur=def.fur, belly=def.belly;
+
+  // tronc
+  const torso=box(1.0,1.0,0.6,def.shirt,{}); torso.position.y=1.25; g.add(torso);
+  const pants=box(0.95,0.5,0.58,def.pants,{}); pants.position.y=0.78; g.add(pants);
+
+  // tête
+  const head=box(1.05,0.95,0.95,fur,{}); head.position.y=2.15; g.add(head);
+  const muzzle=box(0.7,0.45,0.3,belly,{}); muzzle.position.set(0,1.98,0.5); g.add(muzzle);
+  const nose=box(0.16,0.12,0.12,0xe05a8a,{}); nose.position.set(0,2.08,0.66); g.add(nose);
+  // yeux
+  for(const sx of [-1,1]){
+    const eye=box(0.2,0.26,0.08,0xffffff,{}); eye.position.set(sx*0.27,2.28,0.49); g.add(eye);
+    const pup=box(0.09,0.13,0.06,0x14202e,{}); pup.position.set(sx*0.27,2.27,0.53); g.add(pup);
+  }
+  // oreilles
+  function ear(sx){
+    let e;
+    if(def.ears==="raccoon"){ e=box(0.34,0.34,0.12,fur,{}); e.position.set(sx*0.42,2.72,0); }
+    else if(def.ears==="dog"){ e=box(0.26,0.5,0.16,fur,{}); e.position.set(sx*0.5,2.45,0); }
+    else { e=new THREE.Mesh(new THREE.ConeGeometry(0.28,0.5,4),
+            new THREE.MeshStandardMaterial({color:fur,flatShading:true,roughness:0.8}));
+           e.rotation.y=Math.PI/4; e.position.set(sx*0.36,2.78,0); e.castShadow=true; }
+    return e;
+  }
+  g.add(ear(-1)); g.add(ear(1));
+
+  // accessoires
+  if(def.acc==="mask"){ // raton : masque sombre sur les yeux
+    const mask=box(0.95,0.3,0.06,0x14181f,{}); mask.position.set(0,2.28,0.5); g.add(mask);
+  }
+  if(def.acc==="glasses"){
+    for(const sx of [-1,1]){ const r=new THREE.Mesh(new THREE.TorusGeometry(0.16,0.04,8,16),
+      new THREE.MeshStandardMaterial({color:0x222222})); r.position.set(sx*0.27,2.28,0.55); g.add(r); }
+  }
+  if(def.acc==="bow"){ const b=box(0.4,0.25,0.12,0xff4f8b,{}); b.position.set(0.45,2.7,0); g.add(b); }
+
+  // bras
+  const armL=box(0.25,0.8,0.25,fur,{}); armL.position.set(-0.66,1.3,0); g.add(armL);
+  const armR=box(0.25,0.8,0.25,fur,{}); armR.position.set(0.66,1.3,0); g.add(armR);
+  // jambes
+  const legL=box(0.3,0.7,0.3,def.pants,{}); legL.position.set(-0.27,0.4,0); g.add(legL);
+  const legR=box(0.3,0.7,0.3,def.pants,{}); legR.position.set(0.27,0.4,0); g.add(legR);
+  const shoeL=box(0.34,0.2,0.45,0xffffff,{}); shoeL.position.set(-0.27,0.08,0.08); g.add(shoeL);
+  const shoeR=box(0.34,0.2,0.45,0xffffff,{}); shoeR.position.set(0.27,0.08,0.08); g.add(shoeR);
+  // queue
+  const tail=box(0.2,0.2,0.7,fur,{}); tail.position.set(0,0.9,-0.5); g.add(tail);
+
+  g.userData.parts={armL,armR,legL,legR,tail,head};
+  g.scale.set(0.85,0.85,0.85);
+  return g;
+}
+
+function makeCar(color){
+  const g=new THREE.Group();
+  const body=box(1.9,0.9,3.4,color,{metal:0.4,rough:0.4}); body.position.y=0.75; g.add(body);
+  const cab=box(1.7,0.7,1.8,color,{metal:0.4,rough:0.4}); cab.position.set(0,1.45,-0.1); g.add(cab);
+  // vitres
+  const glass=new THREE.MeshStandardMaterial({color:0x8fd0ff,metalness:0.6,roughness:0.2});
+  const ws=new THREE.Mesh(new THREE.BoxGeometry(1.55,0.55,0.1),glass); ws.position.set(0,1.45,0.82); g.add(ws);
+  const wsb=new THREE.Mesh(new THREE.BoxGeometry(1.55,0.55,0.1),glass); wsb.position.set(0,1.45,-1.0); g.add(wsb);
+  // phares
+  for(const sx of [-1,1]){ const h=box(0.3,0.25,0.1,0xfff3b0,{}); h.position.set(sx*0.6,0.75,1.71); g.add(h); }
+  // roues
+  const wheelGeo=new THREE.CylinderGeometry(0.42,0.42,0.3,14);
+  const wheelMat=new THREE.MeshStandardMaterial({color:0x16181c,roughness:0.9});
+  for(const sx of [-1,1]) for(const sz of [-1,1]){
+    const w=new THREE.Mesh(wheelGeo,wheelMat); w.rotation.z=Math.PI/2;
+    w.position.set(sx*1.0,0.42,sz*1.1); w.castShadow=true; g.add(w);
+  }
+  g.userData.height=1.85; // hauteur du toit (pour "monter dessus")
+  return g;
+}
+
+function makeGold(){
+  // lingot bien brillant et jaune (couleur vive + émissif doré)
+  const m=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.38,0.48),
+    new THREE.MeshStandardMaterial({color:0xffe000, emissive:0xffc400, emissiveIntensity:0.6, metalness:0.95, roughness:0.1}));
+  m.castShadow=true; m.userData.kind="gold"; return m;
+}
+function makeGoal(){ // cage de foot
+  const g=new THREE.Group();
+  const w=3.6,h=2.3;
+  const white=()=>new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.5});
+  for(const sx of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.16,h,0.16),white()); p.position.set(sx*w/2,h/2,0); g.add(p); }
+  const cross=new THREE.Mesh(new THREE.BoxGeometry(w,0.16,0.16),white()); cross.position.set(0,h,0); g.add(cross);
+  // filet (plans translucides + grille)
+  const netMat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:0.18,side:THREE.DoubleSide});
+  const back=new THREE.Mesh(new THREE.PlaneGeometry(w,h),netMat); back.position.set(0,h/2,-1.1); g.add(back);
+  const top=new THREE.Mesh(new THREE.PlaneGeometry(w,1.1),netMat); top.rotation.x=Math.PI/2; top.position.set(0,h,-0.55); g.add(top);
+  const grid=new THREE.Mesh(new THREE.PlaneGeometry(w,h,7,5),new THREE.MeshBasicMaterial({color:0xeeeeee,wireframe:true,transparent:true,opacity:0.55}));
+  grid.position.set(0,h/2,-1.1); g.add(grid);
+  g.userData.kind="goal"; return g;
+}
+function makeWhistle(){
+  const g=new THREE.Group();
+  const b=box(0.5,0.35,0.35,0x2bb0e0,{metal:0.5,rough:0.3}); g.add(b);
+  const sp=box(0.25,0.25,0.25,0x1a90c0,{}); sp.position.set(0,0.05,0.28); g.add(sp);
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(0.12,10,10),new THREE.MeshStandardMaterial({color:0x0e6e9a}));
+  ball.position.set(0,-0.18,0.05); g.add(ball);
+  g.userData.kind="whistle"; return g;
+}
+function makeBall(){
+  const g=new THREE.Group();
+  const s=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,16),
+    new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.6}));
+  s.castShadow=true; g.add(s);
+  // pentagones noirs simplifiés
+  for(let i=0;i<6;i++){
+    const p=new THREE.Mesh(new THREE.CircleGeometry(0.14,5),new THREE.MeshStandardMaterial({color:0x101418,side:THREE.DoubleSide}));
+    const a=i/6*Math.PI*2;
+    p.position.set(Math.cos(a)*0.42,Math.sin(a)*0.3,Math.sin(a)*0.3+0.0);
+    p.lookAt(p.position.clone().multiplyScalar(3)); g.add(p);
+  }
+  g.userData.kind="ball"; return g;
+}
+function makeSkate(){
+  const g=new THREE.Group();
+  const deck=box(0.6,0.12,1.6,0xff5a3c,{metal:0.2,rough:0.5}); deck.position.y=0.25; g.add(deck);
+  const wg=new THREE.CylinderGeometry(0.14,0.14,0.1,12);
+  const wm=new THREE.MeshStandardMaterial({color:0xffe14a,metalness:0.4});
+  for(const sx of [-1,1]) for(const sz of [-1,1]){
+    const w=new THREE.Mesh(wg,wm); w.rotation.z=Math.PI/2; w.position.set(sx*0.28,0.12,sz*0.55); g.add(w);
+  }
+  g.userData.kind="skate"; return g;
+}
+function makeBarrier(){ // obstacle aérien : il faut GLISSER dessous
+  const g=new THREE.Group();
+  const bar=box(ROAD_W,0.5,0.4,0xff7a1a,{}); bar.position.y=2.6; g.add(bar);
+  for(const sx of [-1,1]){ const p=box(0.3,2.8,0.3,0xffffff,{}); p.position.set(sx*ROAD_W/2,1.4,0); g.add(p); }
+  g.userData.kind="barrier"; g.userData.height=3.0; return g;
+}
+function makeCrate(){ // caisse : sauter par-dessus (ou monter dessus)
+  const g=new THREE.Group();
+  const c=box(1.0,0.9,1.0,0xb5793b,{rough:0.95}); c.position.y=0.45; g.add(c);
+  for(const sy of [0.18,0.72]){ const s=box(1.04,0.08,1.04,0x8a5a28,{}); s.position.y=sy; g.add(s); }
+  g.userData.kind="crate"; g.userData.height=0.95; return g;
+}
+function makeBridge(){ // pont / passerelle au-dessus de la route (on passe dessous)
+  const g=new THREE.Group();
+  const span=ROAD_W+8;
+  const deck=box(span,0.8,3.4,0x9a6b3a,{rough:0.9}); deck.position.y=6.2; g.add(deck);
+  for(const sz of [-1.5,1.5]){ const rail=box(span,0.5,0.3,0xcfa46a,{}); rail.position.set(0,6.9,sz); g.add(rail); }
+  for(const sx of [-1,1]){
+    const pillar=box(1.6,6.5,2.4,0xbfc3c8,{rough:0.95}); pillar.position.set(sx*(span/2-0.8),3.25,0); g.add(pillar);
+    const arch=box(1.0,3.2,0.6,0xbfc3c8,{}); arch.position.set(sx*(ROAD_W/2+1.3),3.6,1.2); g.add(arch);
+  }
+  const sign=box(5,1.4,0.2,0x2b6fd6,{}); sign.position.set(0,7.6,1.7); g.add(sign);
+  g.userData.kind="bridge"; return g;
+}
+
+function makeBuilding(){
+  const h=8+Math.random()*16;
+  const colors=[0xd98a5a,0xc25b4a,0xcf9b6a,0xb86b54,0xe0a878,0x9a7b5a];
+  const c=colors[(Math.random()*colors.length)|0];
+  const b=box(7,h,8,c,{rough:0.95,cast:false,recv:true}); b.position.y=h/2;
+  // fenêtres
+  const wm=new THREE.MeshStandardMaterial({color:0x9fd0ff,emissive:0x16314a,roughness:0.3});
+  const rows=Math.floor(h/2.2);
+  for(let r=0;r<rows;r++) for(let cI=0;cI<2;cI++){
+    const w=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.1),wm);
+    w.position.set(-1.4+cI*2.8, 1.6+r*2.2 - h/2, 4.05); b.add(w);
+  }
+  return b;
+}
+function makeLamp(){
+  const g=new THREE.Group();
+  const pole=box(0.25,5,0.25,0x2c2c30,{}); pole.position.y=2.5; g.add(pole);
+  const arm=box(1.2,0.2,0.2,0x2c2c30,{}); arm.position.set(0.5,4.8,0); g.add(arm);
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.3,10,10),
+    new THREE.MeshStandardMaterial({color:0xfff0b0,emissive:0xffcf6a,emissiveIntensity:0.8}));
+  lamp.position.set(1.05,4.7,0); g.add(lamp);
+  return g;
+}
+function makeTree(){
+  const g=new THREE.Group();
+  const trunk=box(0.5,1.5,0.5,0x6b4a2a,{}); trunk.position.y=0.75; g.add(trunk);
+  const leaf=new THREE.Mesh(new THREE.SphereGeometry(1.4,8,8),new THREE.MeshStandardMaterial({color:0x3fae4a,flatShading:true}));
+  leaf.position.y=2.5; leaf.castShadow=true; g.add(leaf);
+  return g;
+}
+function makeVillageHouse(){
+  const g=new THREE.Group();
+  const base=box(1.6,1.2,1.6,0xf0d9b0,{}); base.position.y=0.6; g.add(base);
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(1.4,1.0,4),new THREE.MeshStandardMaterial({color:0xc23b3b,flatShading:true}));
+  roof.rotation.y=Math.PI/4; roof.position.y=1.7; g.add(roof);
+  return g;
+}
+
+// =========================================================================
+//  MONDE
+// =========================================================================
+function buildWorld(){
+  const world={ obstacles:[], collectibles:[], decor:[], dashes:[], rival:null };
+
+  // sol herbe + route
+  const grassMat=new THREE.MeshStandardMaterial({color:0x7cc34a,roughness:1});
+  const grass=new THREE.Mesh(new THREE.PlaneGeometry(200,400),grassMat);
+  grass.rotation.x=-Math.PI/2; grass.position.set(0,-0.01,-100); grass.receiveShadow=true;
+  State.scene.add(grass);
+
+  const roadMat=new THREE.MeshStandardMaterial({color:0x3a3f48,roughness:1});
+  const road=new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W,400),roadMat);
+  road.rotation.x=-Math.PI/2; road.position.set(0,0,-100); road.receiveShadow=true;
+  State.scene.add(road);
+  world.road=road;
+
+  // trottoirs
+  for(const sx of [-1,1]){
+    const sw=new THREE.Mesh(new THREE.BoxGeometry(4,0.4,400),new THREE.MeshStandardMaterial({color:0xb9bcc2}));
+    sw.position.set(sx*(ROAD_W/2+2),0.2,-100); sw.receiveShadow=true; State.scene.add(sw);
+  }
+
+  // pointillés de voie (recyclés pour donner la vitesse)
+  const dashMat=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x333333});
+  for(let i=0;i<40;i++){
+    for(const lx of [-1.2,1.2]){
+      const d=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.02,2.2),dashMat);
+      d.position.set(lx,0.02,-i*5);
+      State.scene.add(d); world.dashes.push(d);
+    }
+  }
+
+  // décor latéral (immeubles, lampadaires, arbres) recyclé
+  for(let i=0;i<16;i++){
+    for(const sx of [-1,1]){
+      const z=-i*12 - Math.random()*4;
+      const pick=Math.random();
+      let item;
+      if(pick<0.6){ item=makeBuilding(); item.position.set(sx*(ROAD_W/2+7.5),0,z); }
+      else if(pick<0.8){ item=makeTree(); item.position.set(sx*(ROAD_W/2+4.5),0.4,z); }
+      else { item=makeLamp(); item.position.set(sx*(ROAD_W/2+1.6),0.4,z); }
+      State.scene.add(item); world.decor.push(item);
+    }
+  }
+
+  return world;
+}
+
+// =========================================================================
+//  SPAWN (génère lingots, voitures, sifflets, ballons, skate, barrières)
+// =========================================================================
+let spawnZ=-30;
+function resetSpawner(){ spawnZ=-30; }
+
+function spawnRow(){
+  const r=Math.random();
+  const lvl=State.level;
+
+  if(r<0.38){ // ligne de lingots (parfois en arc -> récompense saut)
+    const lane=LANES[(Math.random()*3)|0];
+    const arc=Math.random()<0.3;
+    const n=4+((Math.random()*3)|0);
+    for(let i=0;i<n;i++){
+      const g=makeGold(); const z=spawnZ-i*1.8;
+      const y=arc? 0.6 + Math.sin(i/(n-1)*Math.PI)*2.2 : 0.7;
+      g.position.set(lane,y,z); addCollectible(g);
+    }
+  } else if(r<0.60){ // voiture(s) — laisse toujours au moins une voie libre
+    const blocked=Math.random()<Math.min(0.15+lvl*0.05,0.45)?2:1;
+    const idxs=[0,1,2].sort(()=>Math.random()-0.5).slice(0,blocked);
+    for(const li of idxs){
+      const colors=[0x2a2f3a,0xb83b3b,0x2f6fb0,0xddaa22,0x3a8a4a];
+      const c=makeCar(colors[(Math.random()*colors.length)|0]);
+      c.position.set(LANES[li],0,spawnZ);
+      c.userData.kind="car";
+      c.userData.extra = 4+Math.random()*lvl*1.5; // les voitures "avancent" vers le joueur
+      addObstacle(c);
+    }
+    // souvent des lingots à ramasser en sautant sur la voiture
+    if(Math.random()<0.5){
+      const li=idxs[0];
+      for(let i=0;i<3;i++){ const g=makeGold(); g.position.set(LANES[li],2.6,spawnZ-i*1.6); addCollectible(g); }
+    }
+  } else if(r<0.70){ // caisse -> sauter par-dessus (avec lingots à récupérer en sautant)
+    const lane=LANES[(Math.random()*3)|0];
+    const c=makeCrate(); c.position.set(lane,0,spawnZ); addObstacle(c);
+    for(let i=0;i<3;i++){ const g=makeGold(); g.position.set(lane,1.9+Math.sin(i/2*Math.PI)*0.7,spawnZ-1.0-i*1.2); addCollectible(g); }
+  } else if(r<0.80){ // sifflet (temps)
+    const lane=LANES[(Math.random()*3)|0];
+    const w=makeWhistle(); w.position.set(lane,1.1,spawnZ); addCollectible(w);
+  } else if(r<0.87){ // barrière aérienne -> glisser
+    addObstacle(makeBarrier(), spawnZ);
+  } else if(r<0.94){ // ballon ⚽ (+20 + BUT)
+    const lane=LANES[(Math.random()*3)|0];
+    const b=makeBall(); b.position.set(lane,1.1,spawnZ); addCollectible(b);
+  } else { // skateboard (power-up)
+    const lane=LANES[(Math.random()*3)|0];
+    const s=makeSkate(); s.position.set(lane,0.4,spawnZ); addCollectible(s);
+  }
+
+  spawnZ -= 11 + Math.random()*6;
+}
+function addObstacle(o,z){ if(z!==undefined)o.position.z=z; State.scene.add(o); State.world.obstacles.push(o); }
+function addCollectible(o){ State.scene.add(o); State.world.collectibles.push(o); }
+
+// ponts : décor au-dessus de la route, on passe simplement dessous
+function maybeSpawnBridge(){
+  if(Math.random()>0.006) return;
+  const b=makeBridge(); b.position.set(0,0,SPAWN_Z);
+  State.scene.add(b); State.world.obstacles.push(b);
+}
+
+// rival "raton" pour le côté course
+function maybeSpawnRival(){
+  if(State.world.rival||Math.random()>0.004) return;
+  const rivDef=CHARACTERS[5];
+  const r=makeCharacter(rivDef);
+  r.position.set(LANES[(Math.random()*3)|0],0,-50);
+  r.userData.speedOffset = -2 - Math.random()*3; // un peu plus lent -> on le double
+  State.scene.add(r); State.world.rival=r;
+}
+
+// =========================================================================
+//  JOUEUR
+// =========================================================================
+function createPlayer(){
+  if(State.player){ State.scene.remove(State.player.group); }
+  const def=CHARACTERS[State.charIndex];
+  const group=makeCharacter(def);
+  group.position.set(0,0,PLAYER_Z);
+  group.rotation.y=Math.PI; // dos à la caméra
+  State.scene.add(group);
+  State.player={
+    group, lane:1, x:0, y:0, vy:0, onGround:true, onCar:false,
+    sliding:false, slideT:0, skate:0, board:null, runT:0,
+  };
+}
+
+// =========================================================================
+//  ENTREES
+// =========================================================================
+function moveLane(dir){
+  const p=State.player; if(!p||!State.running||State.paused) return;
+  p.lane=Math.max(0,Math.min(2,p.lane+dir));
+}
+function jump(){
+  const p=State.player; if(!p||!State.running||State.paused) return;
+  if(p.onGround||p.onCar){ p.vy=JUMP_V; p.onGround=false; p.onCar=false; SFX.jump(); }
+}
+function slide(){
+  const p=State.player; if(!p||!State.running||State.paused) return;
+  if(!p.sliding){ p.sliding=true; p.slideT=0.55; }
+}
+
+addEventListener("keydown",e=>{
+  if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
+  switch(e.code){
+    case "ArrowLeft": case "KeyA": moveLane(-1); break;
+    case "ArrowRight": case "KeyD": moveLane(1); break;
+    case "ArrowUp": case "KeyW": case "Space": jump(); break;
+    case "ArrowDown": case "KeyS": slide(); break;
+    case "KeyP": togglePause(); break;
+  }
+});
+
+// tactile : swipe
+let touchX=0,touchY=0,touchT=0;
+addEventListener("touchstart",e=>{ const t=e.changedTouches[0]; touchX=t.clientX; touchY=t.clientY; touchT=performance.now(); },{passive:true});
+addEventListener("touchend",e=>{
+  const t=e.changedTouches[0]; const dx=t.clientX-touchX, dy=t.clientY-touchY;
+  if(Math.abs(dx)<24&&Math.abs(dy)<24){ jump(); return; } // tap = saut
+  if(Math.abs(dx)>Math.abs(dy)){ moveLane(dx>0?1:-1); }
+  else { dy>0? slide() : jump(); }
+},{passive:true});
+
+document.getElementById("pauseBtn").addEventListener("click",togglePause);
+
+// =========================================================================
+//  BOUCLE
+// =========================================================================
+function update(dt){
+  if(!State.running||State.paused||State.gameOver) return;
+  const p=State.player;
+
+  // vitesse : accélère doucement jusqu'à un plafond, puis se stabilise
+  State.speed = Math.min(State.maxSpeed, State.speed + dt*0.35);
+  const skateBoost = p.skate>0 ? 1.5 : 1;
+  const worldSpeed = State.speed*skateBoost;
+
+  // distance + multiplicateur
+  State.dist += worldSpeed*dt;
+  State.mult = Math.min(8, 1+Math.floor(State.dist/120));
+
+  // temps (sifflet)
+  State.time -= dt;
+  if(State.time<=0){ endGame("⏱️ Temps écoulé !"); return; }
+
+  // ----- mouvement latéral / vertical du joueur -----
+  const targetX=LANES[p.lane];
+  p.x += (targetX-p.x)*Math.min(1,dt*14);
+  p.vy += GRAVITY*dt;
+  p.y += p.vy*dt;
+
+  // support sol par défaut
+  let support=0, ridingCar=false;
+
+  // glissade
+  if(p.sliding){ p.slideT-=dt; if(p.slideT<=0) p.sliding=false; }
+
+  // skate timer
+  if(p.skate>0){ p.skate-=dt; if(p.skate<=0){ p.skate=0; setSkateVisual(false);} }
+
+  // ----- décor / pointillés défilent -----
+  for(const d of State.world.dashes){
+    d.position.z+=worldSpeed*dt;
+    if(d.position.z>RECYCLE_Z) d.position.z-=40*5;
+  }
+  for(const it of State.world.decor){
+    it.position.z+=worldSpeed*dt;
+    if(it.position.z>RECYCLE_Z+10) it.position.z-=12*16;
+  }
+
+  // ----- obstacles -----
+  for(let i=State.world.obstacles.length-1;i>=0;i--){
+    const o=State.world.obstacles[i];
+    const extra=o.userData.extra||0;
+    o.position.z += (worldSpeed+extra)*dt;
+    if(o.position.z>RECYCLE_Z){ State.scene.remove(o); State.world.obstacles.splice(i,1); continue; }
+
+    // collisions près du joueur
+    const dz=Math.abs(o.position.z-PLAYER_Z);
+    if(o.userData.kind==="car"){
+      const dx=Math.abs(o.position.x-p.x);
+      if(dz<2.0 && dx<1.4){
+        const carTop=o.userData.height;
+        if(p.y>=carTop-0.35){ // on retombe SUR la voiture -> on monte dessus
+          support=Math.max(support,carTop); ridingCar=true;
+          if(p.vy<0){ p.y=carTop; p.vy=0; }
+        } else if(p.skate>0){ // mode skate : on traverse
+        } else { endGame("💥 Écrasé par une voiture !"); return; }
+      }
+    } else if(o.userData.kind==="crate"){
+      const dx=Math.abs(o.position.x-p.x);
+      if(dz<1.0 && dx<1.0){
+        const top=o.userData.height;
+        if(p.y>=top-0.25){ support=Math.max(support,top); ridingCar=true; if(p.vy<0){ p.y=top; p.vy=0; } }
+        else if(p.skate>0){ /* skate : on défonce */ }
+        else { endGame("💥 Caisse ! (saute par-dessus)"); return; }
+      }
+    } else if(o.userData.kind==="barrier"){
+      if(dz<1.0){
+        const headY = p.y + (p.sliding?0.9:2.0); // tête plus basse en glissade
+        if(!p.sliding && headY>1.6 && p.skate<=0){ endGame("💥 Barrière ! (glisse pour passer)"); return; }
+      }
+    } else if(o.userData.kind==="bridge"){
+      /* décor : on passe dessous, aucune collision */
+    }
+  }
+
+  // appliquer support / sol
+  if(p.y<=support){ p.y=support; p.vy=0; p.onGround=(support===0); p.onCar=ridingCar; }
+  else { p.onGround=false; p.onCar=false; }
+
+  // ----- collectibles -----
+  for(let i=State.world.collectibles.length-1;i>=0;i--){
+    const c=State.world.collectibles[i];
+    c.position.z+=worldSpeed*dt;
+    c.rotation.y+=dt*3;
+    if(c.position.z>RECYCLE_Z){ State.scene.remove(c); State.world.collectibles.splice(i,1); continue; }
+
+    const dz=Math.abs(c.position.z-PLAYER_Z), dx=Math.abs(c.position.x-p.x), dy=Math.abs(c.position.y-(p.y+1.1));
+    // aimant en mode skate
+    const range = p.skate>0?2.6:0;
+    if(range>0 && dz<3 && dx<3){
+      c.position.x += (p.x-c.position.x)*Math.min(1,dt*6);
+      c.position.y += ((p.y+1.1)-c.position.y)*Math.min(1,dt*6);
+    }
+    if(dz<1.1 && dx<1.1 && dy<1.3){
+      collect(c.userData.kind, c.position.clone());
+      State.scene.remove(c); State.world.collectibles.splice(i,1);
+    }
+  }
+
+  // ----- effets (tir au but, etc.) -----
+  updateFX(dt);
+
+  // ----- rival -----
+  maybeSpawnRival();
+  if(State.world.rival){
+    const r=State.world.rival;
+    r.position.z += (worldSpeed + r.userData.speedOffset)*dt;
+    animateRun(r,State.clock.elapsedTime,1.4);
+    if(r.position.z>RECYCLE_Z+4){ State.scene.remove(r); State.world.rival=null; }
+  }
+
+  // ----- spawn continu : le curseur défile avec le monde, on remplit devant -----
+  maybeSpawnBridge();
+  spawnZ += worldSpeed*dt;
+  while(spawnZ > SPAWN_Z){ spawnRow(); }
+
+  // ----- appliquer transform joueur + anim -----
+  p.group.position.x=p.x;
+  p.group.position.y=p.y;
+  p.group.scale.y = p.sliding?0.45:0.85;
+  p.group.scale.x = p.sliding?1.0:0.85;
+  if(p.board) p.board.position.set(p.x,p.y+0.0,PLAYER_Z);
+
+  if(p.onGround||p.onCar) animateRun(p.group,State.clock.elapsedTime, p.skate>0?2.0:1.4);
+  else { // pose de saut
+    const parts=p.group.userData.parts;
+    parts.armL.rotation.x=-2.0; parts.armR.rotation.x=-2.0;
+    parts.legL.rotation.x=0.5; parts.legR.rotation.x=-0.3;
+  }
+
+  // ----- caméra suit légèrement -----
+  State.camera.position.x += (p.x*0.5 - State.camera.position.x)*Math.min(1,dt*5);
+  State.camera.lookAt(p.x*0.3, 1.2, -6);
+
+  // ----- objectif niveau atteint -----
+  if(State.gold>=State.goldTarget){ completeLevel(); }
+
+  updateHUD();
+}
+
+function animateRun(group,t,spd){
+  const parts=group.userData.parts; if(!parts) return;
+  const s=Math.sin(t*10*spd), c=Math.cos(t*10*spd);
+  parts.armL.rotation.x = s*1.1; parts.armR.rotation.x = -s*1.1;
+  parts.legL.rotation.x = -s*1.1; parts.legR.rotation.x = s*1.1;
+  parts.tail.rotation.x = 0.3 + c*0.2;
+  group.position.y += Math.abs(s)*0.04;
+}
+
+// =========================================================================
+//  COLLECTE
+// =========================================================================
+function collect(kind,pos){
+  const p=State.player;
+  if(kind==="gold"){
+    State.gold += State.mult; SFX.coin();
+  } else if(kind==="whistle"){
+    State.whistles++; State.time=Math.min(State.maxTime, State.time+5); SFX.whistle();
+    flash("+5s ⏱️");
+  } else if(kind==="ball"){
+    State.gold += 20; SFX.goal(); flash("BUT ! ⚽ +20"); spawnGoalShot(p.x);
+  } else if(kind==="skate"){
+    p.skate=8; SFX.skate(); flash("MODE SKATE 🛹"); setSkateVisual(true);
+  }
+}
+function setSkateVisual(on){
+  const p=State.player; if(!p) return;
+  if(on && !p.board){ p.board=makeSkate(); p.board.scale.set(1.1,1.1,1.4); State.scene.add(p.board); State.scene.fog.color.setHex(0xd2b6ff); }
+  if(!on && p.board){ State.scene.remove(p.board); p.board=null; State.scene.fog.color.setHex(0x9fd3ff); }
+}
+
+// =========================================================================
+//  HUD / FLASH
+// =========================================================================
+const el=id=>document.getElementById(id);
+function updateHUD(){
+  el("goldCount").textContent=State.gold;
+  el("goldTarget").textContent=State.goldTarget;
+  el("whistleCount").textContent=State.whistles;
+  el("distCount").textContent=Math.floor(State.dist);
+  el("multTag").textContent="x"+State.mult;
+  el("timerFill").style.width=Math.max(0,(State.time/State.maxTime)*100)+"%";
+}
+let flashTimer=null;
+function flash(txt){
+  const f=el("flash"); f.textContent=txt; f.classList.remove("show");
+  void f.offsetWidth; f.classList.add("show");
+}
+
+// =========================================================================
+//  FLUX DE JEU : menus, niveaux, game over, sélection perso
+// =========================================================================
+function showOverlay(html){ const o=el("overlay"); o.classList.remove("hidden","clear"); el("overlayContent").innerHTML=html; }
+function showOverlayClear(html){ const o=el("overlay"); o.classList.remove("hidden"); o.classList.add("clear"); el("overlayContent").innerHTML=html; }
+function hideOverlay(){ el("overlay").classList.add("hidden"); }
+
+function colorHex(n){ return "#"+n.toString(16).padStart(6,"0"); }
+
+function charSelectHTML(actionLabel){
+  let cards="";
+  CHARACTERS.forEach((c,i)=>{
+    const locked = i>=State.unlocked && i!==State.charIndex;
+    cards+=`<div class="charCard ${i===State.charIndex?'sel':''} ${locked?'locked':''}" data-i="${i}" ${locked?'':'data-pick="1"'}>
+      <div class="swatch" style="background:radial-gradient(circle at 35% 30%, ${colorHex(c.belly)}, ${colorHex(c.fur)})"></div>
+      <div class="charName">${c.name}</div>
+      ${locked?`<div class="charLock">🔒 Niv ${i}</div>`:``}
+    </div>`;
+  });
+  return `<div class="charGrid">${cards}</div>
+    <button class="btn" id="goBtn">${actionLabel}</button>`;
+}
+function bindCharCards(){
+  document.querySelectorAll(".charCard[data-pick]").forEach(card=>{
+    card.addEventListener("click",()=>{
+      State.charIndex=parseInt(card.dataset.i);
+      document.querySelectorAll(".charCard").forEach(c=>c.classList.remove("sel"));
+      card.classList.add("sel");
+    });
+  });
+}
+
+function showStart(){
+  State.running=false; State.mode="menu"; clearVillage();
+  showOverlay(`
+    <div class="title">TOM GOLD RUN 🐱</div>
+    <div class="subtitle">Cours, ramasse les lingots d'or pour bâtir de nouveaux villages, esquive ou saute sur les voitures, et marque des buts avec les ballons !</div>
+    <div class="hint">⬅️➡️ ou A/D : changer de voie &nbsp;•&nbsp; ⬆️ / Espace : sauter (monter sur les voitures) &nbsp;•&nbsp; ⬇️ : glisser &nbsp;•&nbsp; (mobile : swipe)</div>
+    ${charSelectHTML("JOUER ▶")}
+  `);
+  bindCharCards();
+  el("goBtn").addEventListener("click",()=>{ SFX.resume(); startLevel(1); });
+}
+
+function startLevel(level){
+  hideOverlay();
+  State.level=level;
+  State.gold=0;
+  State.dist=0;
+  State.mult=1;
+  State.goldTarget = 140 + level*60;      // niveaux plus longs (moins de transitions)
+  State.baseSpeed = 14 + level*1.5;       // démarrage plus doux
+  State.speed = State.baseSpeed;
+  State.maxSpeed = State.baseSpeed + 6;    // plafond : la vitesse arrête de monter
+  State.maxTime = 45 + level*3;
+  State.time = State.maxTime;
+  State.gameOver=false; State.paused=false; State.running=true; State.mode="run";
+
+  // nettoie le monde mobile
+  clearWorldObjects();
+  resetSpawner();
+  for(let i=0;i<6;i++) spawnRow();           // pré-remplit
+  createPlayer();
+  State.camera.position.set(0,4.4,8);
+  updateHUD();
+}
+
+function clearWorldObjects(){
+  for(const a of [State.world.obstacles,State.world.collectibles]){
+    for(const o of a) State.scene.remove(o); a.length=0;
+  }
+  if(State.world.rival){ State.scene.remove(State.world.rival); State.world.rival=null; }
+}
+
+function completeLevel(){
+  if(!State.running) return;
+  State.running=false;
+  State.villages++;
+  if(State.unlocked<CHARACTERS.length) State.unlocked=Math.min(CHARACTERS.length, State.level+1);
+  startVillage();
+}
+
+// ---------- Effets (FX) : tir au but du ballon ----------
+function updateFX(dt){
+  for(let i=State.fx.length-1;i>=0;i--){ if(!State.fx[i](dt)) State.fx.splice(i,1); }
+}
+function spawnGoalShot(x){
+  const goal=makeGoal(); goal.position.set(x,0,PLAYER_Z-17); State.scene.add(goal);
+  const ball=makeBall(); ball.scale.set(0.85,0.85,0.85); ball.position.set(x,1.1,PLAYER_Z); State.scene.add(ball);
+  let t=0; const fly=0.5;
+  State.fx.push((dt)=>{
+    t+=dt;
+    goal.position.z += State.speed*dt;          // la cage défile vers la caméra
+    const p=Math.min(1,t/fly);
+    ball.position.x=x;
+    ball.position.z = PLAYER_Z + (goal.position.z - 1.0 - PLAYER_Z)*p; // file vers l'entrée du but
+    ball.position.y = 1.1 + Math.sin(p*Math.PI)*2.4;                   // arc de tir
+    if(p>=1){ goal.rotation.z=Math.sin(t*45)*0.04; ball.position.z=goal.position.z-1.0; } // dans le filet, secousse
+    if(goal.position.z>RECYCLE_Z+4 || t>2.2){ State.scene.remove(goal); State.scene.remove(ball); return false; }
+    return true;
+  });
+}
+
+// ---------- Scène : construire sa maison entre les niveaux ----------
+function startVillage(){
+  State.running=false; State.mode="village";
+  clearWorldObjects();
+  if(State.player) State.player.group.visible=false;
+
+  const grp=new THREE.Group(); State.scene.add(grp);
+  const v={ t:0, building:false, done:false, boom:false, group:grp, confetti:[] };
+
+  // Tom prêt à avancer
+  const tom=makeCharacter(CHARACTERS[State.charIndex]);
+  tom.position.set(0,0,8); tom.rotation.y=Math.PI; grp.add(tom); v.tom=tom;
+
+  // maisons déjà bâties (le village grandit)
+  const already=State.villages-1;
+  for(let i=0;i<already;i++){
+    const h=makeVillageHouse(); const side=i%2===0?-1:1; const row=Math.floor(i/2);
+    h.position.set(side*(5.0+row*0.0), 0, -2 - row*4.2); h.scale.set(1.15,1.15,1.15); grp.add(h);
+  }
+  // nouvelle maison à construire (au centre, démarre "à plat")
+  const house=makeVillageHouse(); house.position.set(0,0,-4); house.scale.set(1.5,0.001,1.5); grp.add(house); v.house=house;
+
+  State.village=v;
+  State.camera.position.set(0,6.5,15); State.camera.lookAt(0,2,-2);
+
+  showOverlayClear(`
+    <div class="title" style="margin-top:30px">NIVEAU ${State.level} TERMINÉ !</div>
+    <div class="subtitle">🪙 ${State.gold} lingots récoltés — de quoi bâtir une maison !</div>
+    <div style="flex:1"></div>
+    <button class="btn" id="buildBtn">AVANCER & CONSTRUIRE 🏗️</button>
+  `);
+  el("buildBtn").addEventListener("click",triggerBuild);
+}
+function triggerBuild(){
+  const v=State.village; if(!v||v.building) return;
+  v.building=true; v.t=0; hideOverlay(); SFX.jump();
+}
+function spawnConfetti(pos,v){
+  const colors=[0xff5a5a,0x5ad6ff,0xffe14a,0x7ed957,0xff8ad6,0xffa64a];
+  for(let i=0;i<60;i++){
+    const c=box(0.2,0.2,0.06,colors[(Math.random()*colors.length)|0],{cast:false});
+    c.position.set(pos.x+(Math.random()-0.5)*3, pos.y+3.5+Math.random()*2, pos.z+(Math.random()-0.5)*3);
+    c.userData.vx=(Math.random()-0.5)*5; c.userData.vy=2+Math.random()*5; c.userData.vz=(Math.random()-0.5)*5;
+    v.group.add(c); v.confetti.push(c);
+  }
+}
+function updateVillage(dt){
+  updateFX(dt);
+  const v=State.village; if(!v) return;
+  const t=State.clock.elapsedTime;
+
+  if(!v.building){ v.tom.position.y=Math.abs(Math.sin(t*3))*0.06; return; }
+
+  v.t+=dt; const T=v.t;
+  // Tom avance vers la maison
+  v.tom.position.z = Math.max(1.2, 8 - (T/1.6)*6.8);
+  animateRun(v.tom,t,1.2);
+  // la maison se construit (monte)
+  const bp=Math.min(1, Math.max(0,(T-0.3)/1.6));
+  v.house.scale.y = 0.001 + bp*1.5;
+  // confettis + fanfare
+  if(!v.boom && T>1.8){ v.boom=true; spawnConfetti(v.house.position,v); SFX.levelup(); flash("🏠 Maison construite !"); }
+  for(let i=v.confetti.length-1;i>=0;i--){
+    const c=v.confetti[i]; c.userData.vy-=10*dt;
+    c.position.x+=c.userData.vx*dt; c.position.y+=c.userData.vy*dt; c.position.z+=c.userData.vz*dt;
+    c.rotation.x+=dt*6; c.rotation.y+=dt*6;
+    if(c.position.y<0.1){ v.group.remove(c); v.confetti.splice(i,1); }
+  }
+  if(T>2.8 && !v.done){ v.done=true; showVillageContinue(); }
+}
+function showVillageContinue(){
+  let houses=""; for(let i=0;i<State.villages;i++) houses+="🏠";
+  showOverlayClear(`
+    <div class="title" style="margin-top:20px">🏘️ VILLAGE AGRANDI !</div>
+    <div id="villageRow">${houses}</div>
+    <div class="subtitle" style="font-size:18px">Choisis ton personnage pour le niveau ${State.level+1} :</div>
+    ${charSelectHTML("NIVEAU "+(State.level+1)+" ▶")}
+  `);
+  bindCharCards();
+  el("goBtn").addEventListener("click",()=>{ SFX.resume(); clearVillage(); startLevel(State.level+1); });
+}
+function clearVillage(){
+  if(State.village){ State.scene.remove(State.village.group); State.village=null; }
+}
+
+function endGame(reason){
+  if(State.gameOver) return;
+  State.gameOver=true; State.running=false; SFX.crash();
+  let houses=""; for(let i=0;i<State.villages;i++) houses+="🏠";
+  showOverlay(`
+    <div class="title" style="text-shadow:0 5px 0 #a33,0 0 30px #fff">GAME OVER</div>
+    <div class="subtitle">${reason}</div>
+    <div class="stat">Niveau ${State.level} &nbsp;•&nbsp; 🪙 ${State.gold}/${State.goldTarget} &nbsp;•&nbsp; ${Math.floor(State.dist)} m</div>
+    <div class="stat">Villages bâtis : ${houses||"0"}</div>
+    <button class="btn" id="retryBtn">RECOMMENCER 🔄</button>
+    <button class="btn alt" id="menuBtn">MENU</button>
+  `);
+  el("retryBtn").addEventListener("click",()=>{ SFX.resume(); startLevel(State.level); });
+  el("menuBtn").addEventListener("click",()=>{ State.villages=0; State.unlocked=Math.max(1,State.unlocked); showStart(); });
+}
+
+function togglePause(){
+  if(!State.running || State.gameOver) return;
+  State.paused=!State.paused;
+  if(State.paused){
+    showOverlay(`<div class="title">PAUSE</div>
+      <button class="btn" id="resumeBtn">REPRENDRE ▶</button>
+      <button class="btn alt" id="qmenuBtn">MENU</button>`);
+    el("resumeBtn").addEventListener("click",togglePause);
+    el("qmenuBtn").addEventListener("click",()=>{ State.paused=false; State.running=false; State.villages=0; showStart(); });
+  } else hideOverlay();
+}
+
+// =========================================================================
+//  INIT THREE
+// =========================================================================
+function init(){
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x9fd3ff);
+  scene.fog=new THREE.Fog(0x9fd3ff,34,82);
+  State.scene=scene;
+
+  const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,200);
+  camera.position.set(0,4.4,8); camera.lookAt(0,1.2,-6);
+  State.camera=camera;
+
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  el("app").appendChild(renderer.domElement);
+  State.renderer=renderer;
+
+  // lumières
+  const hemi=new THREE.HemisphereLight(0xffffff,0x6b8f5a,0.9); scene.add(hemi);
+  const sun=new THREE.DirectionalLight(0xfff4e0,1.4);
+  sun.position.set(8,18,6); sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.left=-20; sun.shadow.camera.right=20;
+  sun.shadow.camera.top=20; sun.shadow.camera.bottom=-20;
+  sun.shadow.camera.far=60; scene.add(sun);
+
+  State.world=buildWorld();
+  State.clock=new THREE.Clock();
+
+  addEventListener("resize",()=>{
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+
+  showStart();
+  loop();
+}
+
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,State.clock.getDelta());
+  if(State.mode==="village") updateVillage(dt);
+  else update(dt);
+  State.renderer.render(State.scene,State.camera);
+}
+
+init();
+</script>
+</body>
+</html>
