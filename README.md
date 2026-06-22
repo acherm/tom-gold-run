@@ -2,7 +2,8 @@
 
 Un *endless runner* en 3D (Three.js) : cours sur la route à 3 voies avec **Tom le chat**, ramasse les lingots d'or pour bâtir de nouveaux villages, esquive les voitures (ou saute dessus !) et marque des buts avec les ballons.
 
-▶️ **Jouer en ligne :** https://acherm.github.io/tom-gold-run/
+▶️ **Jouer en ligne :** https://blog.mathieuacher.com/tom-gold-run/
+(ou https://acherm.github.io/tom-gold-run/)
 
 ## Contrôles
 
