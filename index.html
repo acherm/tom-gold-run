@@ -538,6 +538,7 @@ function maybeSpawnRival(){
 //  JOUEUR
 // =========================================================================
 function createPlayer(){
+  clearSkate();
   if(State.player){ State.scene.remove(State.player.group); }
   const def=CHARACTERS[State.charIndex];
   const group=makeCharacter(def);
@@ -563,7 +564,7 @@ function jump(){
 }
 function slide(){
   const p=State.player; if(!p||!State.running||State.paused) return;
-  if(!p.sliding){ p.sliding=true; p.slideT=0.55; }
+  if(!p.sliding){ p.sliding=true; p.slideT=0.45; }
 }
 
 addEventListener("keydown",e=>{
@@ -577,14 +578,22 @@ addEventListener("keydown",e=>{
   }
 });
 
-// tactile : swipe
-let touchX=0,touchY=0,touchT=0;
-addEventListener("touchstart",e=>{ const t=e.changedTouches[0]; touchX=t.clientX; touchY=t.clientY; touchT=performance.now(); },{passive:true});
-addEventListener("touchend",e=>{
+// tactile : geste détecté DÈS le glissement (réactif) — une action par geste
+let touchX=0,touchY=0,touchActed=false;
+addEventListener("touchstart",e=>{ const t=e.changedTouches[0]; touchX=t.clientX; touchY=t.clientY; touchActed=false; },{passive:true});
+addEventListener("touchmove",e=>{
+  if(touchActed) return;
   const t=e.changedTouches[0]; const dx=t.clientX-touchX, dy=t.clientY-touchY;
-  if(Math.abs(dx)<24&&Math.abs(dy)<24){ jump(); return; } // tap = saut
-  if(Math.abs(dx)>Math.abs(dy)){ moveLane(dx>0?1:-1); }
-  else { dy>0? slide() : jump(); }
+  const TH=26;                                  // seuil de glissement (px)
+  if(Math.abs(dx)<TH && Math.abs(dy)<TH) return;
+  touchActed=true;
+  if(Math.abs(dx)>Math.abs(dy)) moveLane(dx>0?1:-1);
+  else if(dy>0) slide(); else jump();
+},{passive:true});
+addEventListener("touchend",e=>{
+  if(touchActed) return;                        // déjà agi pendant le geste
+  const t=e.changedTouches[0]; const dx=t.clientX-touchX, dy=t.clientY-touchY;
+  if(Math.abs(dx)<24 && Math.abs(dy)<24) jump(); // tap = saut
 },{passive:true});
 
 document.getElementById("pauseBtn").addEventListener("click",togglePause);
@@ -766,6 +775,12 @@ function setSkateVisual(on){
   if(on && !p.board){ p.board=makeSkate(); p.board.scale.set(1.1,1.1,1.4); State.scene.add(p.board); State.scene.fog.color.setHex(0xd2b6ff); }
   if(!on && p.board){ State.scene.remove(p.board); p.board=null; State.scene.fog.color.setHex(0x9fd3ff); }
 }
+// nettoyage robuste du skate (mort, changement de niveau, scène village)
+function clearSkate(){
+  const p=State.player;
+  if(p){ p.skate=0; if(p.board){ State.scene.remove(p.board); p.board=null; } }
+  if(State.scene && State.scene.fog) State.scene.fog.color.setHex(0x9fd3ff);
+}
 
 // =========================================================================
 //  HUD / FLASH
@@ -892,6 +907,7 @@ function spawnGoalShot(x){
 function startVillage(){
   State.running=false; State.mode="village";
   clearWorldObjects();
+  clearSkate();
   if(State.player) State.player.group.visible=false;
 
   const grp=new THREE.Group(); State.scene.add(grp);
@@ -975,7 +991,7 @@ function clearVillage(){
 
 function endGame(reason){
   if(State.gameOver) return;
-  State.gameOver=true; State.running=false; SFX.crash();
+  State.gameOver=true; State.running=false; SFX.crash(); clearSkate();
   let houses=""; for(let i=0;i<State.villages;i++) houses+="🏠";
   showOverlay(`
     <div class="title" style="text-shadow:0 5px 0 #a33,0 0 30px #fff">GAME OVER</div>
