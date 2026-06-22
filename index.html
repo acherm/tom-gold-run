@@ -8,8 +8,8 @@
   :root { --gold:#ffc11e; --blue:#2b6fd6; }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; overflow:hidden; background:#9fd3ff; font-family:"Segoe UI",system-ui,Arial,sans-serif; user-select:none;
-    touch-action:none; overscroll-behavior:none; -webkit-user-select:none; }
-  #app { position:fixed; inset:0; }
+    overscroll-behavior:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; touch-action:none; }
   canvas { display:block; touch-action:none; }
 
   /* ---------- HUD ---------- */
@@ -58,15 +58,15 @@
   /* ---------- Overlays (menus) ---------- */
   #overlay {
     position:fixed; inset:0; z-index:20; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:18px; padding:24px;
+    align-items:center; justify-content:safe center; gap:18px; padding:24px;
     background:radial-gradient(circle at 50% 30%,#bfe4ff,#7fc0ff 70%,#5aa5f0);
-    text-align:center;
+    text-align:center; overflow-y:auto; -webkit-overflow-scrolling:touch;
   }
   #overlay.hidden { display:none; }
   #overlay.clear { background:transparent; }
   #overlay.clear #overlayContent {
     display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-    gap:16px; height:100vh; width:100%; padding:24px 0;
+    gap:16px; min-height:calc(100vh - 48px); width:100%; padding:12px 0;
   }
   #overlay.clear .title, #overlay.clear .subtitle { text-shadow:0 3px 12px #000a, 0 2px 0 #1b4f9e; }
   .title { font-size:52px; font-weight:900; color:#fff; text-shadow:0 5px 0 #1b4f9e, 0 0 30px #fff; letter-spacing:1px; }
@@ -92,7 +92,24 @@
   .swatch { width:64px; height:64px; border-radius:50%; border:3px solid #00000022; }
   .charName { font-weight:800; color:#1b4f9e; font-size:15px; }
   .charLock { font-size:13px; color:#a33; font-weight:700; }
-  #villageRow { display:flex; gap:6px; font-size:30px; }
+  #villageRow { display:flex; gap:6px; font-size:30px; flex-wrap:wrap; justify-content:center; }
+
+  /* ---------- Compactage mobile ---------- */
+  @media (max-width:600px), (max-height:560px) {
+    .title { font-size:32px; text-shadow:0 3px 0 #1b4f9e; }
+    .subtitle { font-size:15px; line-height:1.25; }
+    .hint { font-size:12px; }
+    .stat { font-size:16px; }
+    .btn { font-size:21px; padding:12px 34px; border-width:3px; }
+    .charGrid { gap:8px; }
+    .charCard { width:88px; padding:7px; border-width:3px; }
+    .swatch { width:46px; height:46px; }
+    .charName { font-size:13px; }
+    #overlay { gap:12px; padding:16px; }
+    .panel { font-size:16px; padding:4px 10px; }
+    .icon { font-size:18px; }
+    #pauseBtn { width:42px; height:42px; font-size:20px; }
+  }
 </style>
 </head>
 <body>
@@ -132,6 +149,9 @@ const RECYCLE_Z = 14;                    // au-delà (derrière la caméra) on r
 const GRAVITY = -42;
 const JUMP_V = 15;
 const PLAYER_Z = 3;                      // le joueur reste ~fixe, le monde défile
+const IS_MOBILE = (typeof navigator!=="undefined") &&
+  (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+   (window.matchMedia && matchMedia("(pointer:coarse)").matches));
 
 // ---------- Personnages ----------
 const CHARACTERS = [];
@@ -350,12 +370,14 @@ function makeBuilding(){
   const colors=[0xd98a5a,0xc25b4a,0xcf9b6a,0xb86b54,0xe0a878,0x9a7b5a];
   const c=colors[(Math.random()*colors.length)|0];
   const b=box(7,h,8,c,{rough:0.95,cast:false,recv:true}); b.position.y=h/2;
-  // fenêtres
-  const wm=new THREE.MeshStandardMaterial({color:0x9fd0ff,emissive:0x16314a,roughness:0.3});
-  const rows=Math.floor(h/2.2);
-  for(let r=0;r<rows;r++) for(let cI=0;cI<2;cI++){
-    const w=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.1),wm);
-    w.position.set(-1.4+cI*2.8, 1.6+r*2.2 - h/2, 4.05); b.add(w);
+  // fenêtres (omises sur mobile pour les performances)
+  if(!IS_MOBILE){
+    const wm=new THREE.MeshStandardMaterial({color:0x9fd0ff,emissive:0x16314a,roughness:0.3});
+    const rows=Math.floor(h/2.2);
+    for(let r=0;r<rows;r++) for(let cI=0;cI<2;cI++){
+      const w=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.1),wm);
+      w.position.set(-1.4+cI*2.8, 1.6+r*2.2 - h/2, 4.05); b.add(w);
+    }
   }
   return b;
 }
@@ -407,18 +429,23 @@ function buildWorld(){
     sw.position.set(sx*(ROAD_W/2+2),0.2,-100); sw.receiveShadow=true; State.scene.add(sw);
   }
 
-  // pointillés de voie (recyclés pour donner la vitesse)
+  // pointillés de voie (recyclés pour donner la vitesse) — géométrie partagée
   const dashMat=new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x333333});
-  for(let i=0;i<40;i++){
+  const dashGeo=new THREE.BoxGeometry(0.18,0.02,2.2);
+  const DASH_N = IS_MOBILE?24:40;
+  world.dashSpan = DASH_N*5;
+  for(let i=0;i<DASH_N;i++){
     for(const lx of [-1.2,1.2]){
-      const d=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.02,2.2),dashMat);
+      const d=new THREE.Mesh(dashGeo,dashMat);
       d.position.set(lx,0.02,-i*5);
       State.scene.add(d); world.dashes.push(d);
     }
   }
 
   // décor latéral (immeubles, lampadaires, arbres) recyclé
-  for(let i=0;i<16;i++){
+  const DECOR_N = IS_MOBILE?9:16;
+  world.decorSpan = DECOR_N*12;
+  for(let i=0;i<DECOR_N;i++){
     for(const sx of [-1,1]){
       const z=-i*12 - Math.random()*4;
       const pick=Math.random();
@@ -600,11 +627,11 @@ function update(dt){
   // ----- décor / pointillés défilent -----
   for(const d of State.world.dashes){
     d.position.z+=worldSpeed*dt;
-    if(d.position.z>RECYCLE_Z) d.position.z-=40*5;
+    if(d.position.z>RECYCLE_Z) d.position.z-=State.world.dashSpan;
   }
   for(const it of State.world.decor){
     it.position.z+=worldSpeed*dt;
-    if(it.position.z>RECYCLE_Z+10) it.position.z-=12*16;
+    if(it.position.z>RECYCLE_Z+10) it.position.z-=State.world.decorSpan;
   }
 
   // ----- obstacles -----
@@ -987,21 +1014,25 @@ function init(){
   camera.position.set(0,4.4,8); camera.lookAt(0,1.2,-6);
   State.camera=camera;
 
-  const renderer=new THREE.WebGLRenderer({antialias:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const renderer=new THREE.WebGLRenderer({antialias:!IS_MOBILE, powerPreference:"high-performance"});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, IS_MOBILE?1.25:2));  // moins de pixels sur mobile
   renderer.setSize(innerWidth,innerHeight);
-  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled=!IS_MOBILE;                                  // ombres désactivées sur mobile (coûteuses)
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   el("app").appendChild(renderer.domElement);
   State.renderer=renderer;
 
   // lumières
-  const hemi=new THREE.HemisphereLight(0xffffff,0x6b8f5a,0.9); scene.add(hemi);
+  const hemi=new THREE.HemisphereLight(0xffffff,0x6b8f5a, IS_MOBILE?1.15:0.9); scene.add(hemi);
   const sun=new THREE.DirectionalLight(0xfff4e0,1.4);
-  sun.position.set(8,18,6); sun.castShadow=true;
-  sun.shadow.mapSize.set(1024,1024);
-  sun.shadow.camera.left=-20; sun.shadow.camera.right=20;
-  sun.shadow.camera.top=20; sun.shadow.camera.bottom=-20;
-  sun.shadow.camera.far=60; scene.add(sun);
+  sun.position.set(8,18,6); sun.castShadow=!IS_MOBILE;
+  if(!IS_MOBILE){
+    sun.shadow.mapSize.set(1024,1024);
+    sun.shadow.camera.left=-20; sun.shadow.camera.right=20;
+    sun.shadow.camera.top=20; sun.shadow.camera.bottom=-20;
+    sun.shadow.camera.far=60;
+  }
+  scene.add(sun);
 
   State.world=buildWorld();
   State.clock=new THREE.Clock();
